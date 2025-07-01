@@ -4,59 +4,65 @@ import math
 
 LOWER_PLAYER_RATIO = .7 # currently assuming lower rated player has greater ratio/impact on team rating
 
-def calculate_score(team_1_score: int, team_2_score: int) -> tuple[float, float]:
-    """
-    Calculates adjusted scores for two teams based on their initial scores,
-    applying an "extra point" penalty/bonus for games going beyond 11 points.
+class Score(Enum):
+    WIN = 1.0
+    LOSS = 0.0
 
-    Args:
-        team_1_score: The initial score of team 1.
-        team_2_score: The initial score of team 2.
+# This implementation is causing winning players to lose score when calculated score not as high as expected, possibly will revisit
+# def calculate_score(team_1_score: int, team_2_score: int) -> tuple[float, float]:
+#     """
+#     Calculates adjusted scores for two teams based on their initial scores,
+#     applying an "extra point" penalty/bonus for games going beyond 11 points.
+#
+#     Args:
+#         team_1_score: The initial score of team 1.
+#         team_2_score: The initial score of team 2.
+#
+#     Returns:
+#         A tuple containing the adjusted scores for team 1 and team 2.
+#     """
+#
+#     winner_score = max(team_1_score, team_2_score)
+#     loser_score = min(team_1_score, team_2_score)
+#     score_difference = winner_score - loser_score
+#
+#     # Rule 1: Winner must score at least 11
+#     if winner_score < 11:
+#         raise ValueError("The winning team must score at least 11 points.")
+#
+#     if winner_score > 11 and score_difference > 2:
+#         raise ValueError("The winning team and losing team must be within 2 points for any value greater than 11")
+#
+#     # Rule 2: Winner must win by at least 2 points
+#     if score_difference < 2:
+#         raise ValueError("The winning team must win by at least 2 points.")
+#
+#     extra_round = max(0, team_1_score - 11, team_2_score - 11)
+#
+#     # 1 - e^(-kx) extra_point approaches 1 for each extra round played
+#     # Using math.exp for e^x
+#     extra_point = 1 - math.exp(-extra_round)
+#
+#     # Determine the winner and calculate initial adjusted scores
+#     if team_1_score > team_2_score:
+#         margin = team_1_score - team_2_score
+#         adj_team_1_score = 11 + margin
+#         adj_team_2_score = 11 - margin
+#
+#         # Apply extra_point adjustment
+#         final_team_1_score = (adj_team_1_score - extra_point)/ 22
+#         final_team_2_score = (adj_team_2_score + extra_point)/ 22
+#     else:
+#         margin = team_2_score - team_1_score
+#         adj_team_1_score = 11 - margin
+#         adj_team_2_score = 11 + margin
+#
+#         # Apply extra_point adjustment
+#         final_team_1_score = (adj_team_1_score + extra_point)/ 22
+#         final_team_2_score = (adj_team_2_score - extra_point)/ 22
+#
+#     return final_team_1_score, final_team_2_score
 
-    Returns:
-        A tuple containing the adjusted scores for team 1 and team 2.
-    """
-
-    winner_score = max(team_1_score, team_2_score)
-    loser_score = min(team_1_score, team_2_score)
-    score_difference = winner_score - loser_score
-
-    # Rule 1: Winner must score at least 11
-    if winner_score < 11:
-        raise ValueError("The winning team must score at least 11 points.")
-
-    if winner_score > 11 and score_difference > 2:
-        raise ValueError("The winning team and losing team must be within 2 points for any value greater than 11")
-
-    # Rule 2: Winner must win by at least 2 points
-    if score_difference < 2:
-        raise ValueError("The winning team must win by at least 2 points.")
-
-    extra_round = max(0, team_1_score - 11, team_2_score - 11)
-
-    # 1 - e^(-kx) extra_point approaches 1 for each extra round played
-    # Using math.exp for e^x
-    extra_point = 1 - math.exp(-extra_round)
-
-    # Determine the winner and calculate initial adjusted scores
-    if team_1_score > team_2_score:
-        margin = team_1_score - team_2_score
-        adj_team_1_score = 11 + margin
-        adj_team_2_score = 11 - margin
-
-        # Apply extra_point adjustment
-        final_team_1_score = (adj_team_1_score - extra_point)/ 22
-        final_team_2_score = (adj_team_2_score + extra_point)/ 22
-    else:
-        margin = team_2_score - team_1_score
-        adj_team_1_score = 11 - margin
-        adj_team_2_score = 11 + margin
-
-        # Apply extra_point adjustment
-        final_team_1_score = (adj_team_1_score + extra_point)/ 22
-        final_team_2_score = (adj_team_2_score - extra_point)/ 22
-
-    return final_team_1_score, final_team_2_score
 
 
 
@@ -64,8 +70,7 @@ def calculate_score(team_1_score: int, team_2_score: int) -> tuple[float, float]
 
 
 
-
-def calculate_expected_score(rating_a: int, rating_b: int) -> float:
+def calculate_expected_score(rating_a: float, rating_b: float) -> float:
     """
     Formula: Ea = 1 / (1 + 10^((Rb - Ra) / 400))
     Ea - expected score
@@ -74,19 +79,21 @@ def calculate_expected_score(rating_a: int, rating_b: int) -> float:
     """
     return 1 / (1 + 10 ** ((rating_b - rating_a) / 400))
 
-def calculate_k(games: int, rating: int) -> int:
+def calculate_k(games: int, rating: float, win_margin: int) -> float:
+    k_factor = 1 + (win_margin / 11)
     if games < 10:
-        return 150
-    elif games < 20 :
-        return 75
+        base_k = 150
+    elif games < 20:
+        base_k = 75
     elif 1700 > rating > 1300:
-        return 32
+        base_k = 32
     else:
-        return 16
+        base_k = 16
+    return base_k * k_factor
 
 
 
-def calculate_player_ranking_update(rank_player: float, rank_opponent: float, outcome_score: float, games: int) -> float:
+def calculate_player_ranking_update(rank_player: float, rank_opponent: float, outcome_score: float, games: int, win_margin: int = None) -> float:
     """
     :param rank_player: ELO rating of player
     :param rank_opponent: ELO rating of opponent
@@ -95,7 +102,7 @@ def calculate_player_ranking_update(rank_player: float, rank_opponent: float, ou
     :return: updated rating for player
     """
     expected = calculate_expected_score(rank_player, rank_opponent)
-    k = calculate_k(games, rank_player)
+    k = calculate_k(games, rank_player, win_margin)
     update_qty = k * (outcome_score - expected)
     return update_qty
 

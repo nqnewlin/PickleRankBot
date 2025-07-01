@@ -138,17 +138,26 @@ class Player:
         team_1_rating = Rating.calculate_team_rating(team_1_player_1[0], team_1_player_2[0])
         team_2_rating = Rating.calculate_team_rating(team_2_player_1[0], team_2_player_2[0])
 
-        team_1_score_calc, team_2_score_calc = Rating.calculate_score(team_1_score, team_2_score)
+        # team_1_score_calc, team_2_score_calc = Rating.calculate_score(team_1_score, team_2_score)
+        if team_1_score > team_2_score:
+            team_1_score_calc = 1.0
+            team_2_score_calc = 0.0
+        else:
+            team_1_score_calc = 0.0
+            team_2_score_calc = 1.0
+        winner_score = max(team_1_score, team_2_score)
+        loser_score = min(team_1_score, team_2_score)
+        score_difference = winner_score - loser_score
 
-        team_1_player_1_update = Rating.calculate_player_ranking_update(team_1_rating, team_2_rating, team_1_score_calc, team_1_player_1[1])
+        team_1_player_1_update = Rating.calculate_player_ranking_update(team_1_rating, team_2_rating, team_1_score_calc, team_1_player_1[1], score_difference)
         self.__update_rating(team_1[0], int(team_1_player_1[0] + team_1_player_1_update))
         if len(team_1) > 1:
-            team_1_player_2_update = Rating.calculate_player_ranking_update(team_1_rating, team_2_rating, team_1_score_calc, team_1_player_2[1])
+            team_1_player_2_update = Rating.calculate_player_ranking_update(team_1_rating, team_2_rating, team_1_score_calc, team_1_player_2[1], score_difference)
             self.__update_rating(team_1[1], int(team_1_player_2[0] + team_1_player_2_update))
-        team_2_player_1_update = Rating.calculate_player_ranking_update(team_2_rating, team_1_rating, team_2_score_calc, team_2_player_1[1])
+        team_2_player_1_update = Rating.calculate_player_ranking_update(team_2_rating, team_1_rating, team_2_score_calc, team_2_player_1[1], score_difference)
         self.__update_rating(team_2[0], int(team_2_player_1[0] + team_2_player_1_update))
         if len(team_2) > 1:
-            team_2_player_2_update = Rating.calculate_player_ranking_update(team_2_rating, team_1_rating, team_2_score_calc, team_2_player_2[1])
+            team_2_player_2_update = Rating.calculate_player_ranking_update(team_2_rating, team_1_rating, team_2_score_calc, team_2_player_2[1], score_difference)
             self.__update_rating(team_2[1], int(team_2_player_2[0] + team_2_player_2_update))
 
 

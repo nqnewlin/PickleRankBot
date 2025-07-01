@@ -56,7 +56,7 @@ class PlayerSelectView(View):
         # Create the Select component dynamically
         options = []
         for p in self.player_list:
-            options.append(discord.SelectOption(label=f'{p['first_name']} {p['last_name'][0].upper()}.', value=p['player_id']))  # Assuming 'id' as a unique value
+            options.append(discord.SelectOption(label=f"{p['first_name']} {p['last_name'][0].upper()}.", value=p['player_id']))  # Assuming 'id' as a unique value
 
         select = Select(
             placeholder="Choose an option",
@@ -76,7 +76,7 @@ class PlayerSelectView(View):
 
         # You can now process multiple selected values
         selected_names = [
-            f'{p['first_name']} {p['last_name'][0].upper()}.' for p in self.player_list if str(p.get('player_id')) in selected_values
+            f"{p['first_name']} {p['last_name'][0].upper()}." for p in self.player_list if str(p.get('player_id')) in selected_values
         ]
 
         await interaction.response.send_message(f"You selected: {', '.join(selected_names)}")
@@ -192,7 +192,7 @@ async def list_rank(ctx):
     buffer = io.BytesIO()
     fig.savefig(
         buffer,
-        format='png',  # Specify the format (e.g., 'png', 'jpeg', 'pdf')
+        format='png',
         dpi=200,
         bbox_inches="tight"
     )
@@ -212,10 +212,10 @@ async def list_rank(ctx):
 @client.command(name='addplayer')
 async def add_player(ctx, first_name: str, last_name: str):
     created = players.create_new_player(first_name, last_name)
-    await ctx.send(f'Added {first_name} {last_name[0].upper()}' if created else 'Error adding player')
+    await ctx.send(f"Added {first_name} {last_name[0].upper()}" if created else 'Error adding player')
 
 @client.hybrid_command(name='savematch')
-async def save_match(ctx):
+async def save_match(ctx) -> list:
     player_list = players.retrieve_player_list()
     player_list = sorted(player_list, key=lambda x: x['first_name'])
 
@@ -244,13 +244,13 @@ async def save_match(ctx):
         return
     elif len(filtered_players) == 1:
         confirm_view = Confirm()
-        await ctx.send(f'Is team 2 {filtered_players[0]['first_name']} {filtered_players[0]['last_name'][0].upper()}.?', view=confirm_view)
+        await ctx.send(f"Is team 2 {filtered_players[0]['first_name']} {filtered_players[0]['last_name'][0].upper()}.?", view=confirm_view)
         await confirm_view.wait()
         team_2 = [str(filtered_players[0]['player_id'])]
     else:
         view_2 = PlayerSelectView(filtered_players, len(team_1))
         quantity = "one" if len(team_1) == 1 else "two"
-        await ctx.send(f'Select {quantity} player(s) for team 2:', view=view_2)
+        await ctx.send(f"Select {quantity} player(s) for team 2:", view=view_2)
         await view_2.wait()
         team_2 = view_2.value
 
@@ -261,6 +261,7 @@ async def save_match(ctx):
     team_2_score = int(score_2_view.value)
 
     await ctx.send('Match successfully added' if players.add_match(team_1, team_2, team_1_score, team_2_score) else 'Error adding match...')
+
 
 
 
