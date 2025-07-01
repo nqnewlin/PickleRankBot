@@ -74,6 +74,30 @@ class PlayerSelectView(View):
         await interaction.response.send_message(f"You selected: {', '.join(selected_names)}")
         self.stop()
 
+class ScoreSelectView(View):
+    def __init__(self):
+        super().__init__()
+        self.value = None
+        options = [discord.SelectOption(label=i + 1, value=i + 1) for i in range(20)]
+
+        select = Select(
+            placeholder="Choose an option",
+            options=options,
+            min_values=1,
+            max_values=1,
+            custom_id="score_select"  # It's good practice to add a custom_id
+        )
+        self.add_item(select)
+
+        # Assign the callback to the dynamically created select
+        select.callback = self.select_callback
+
+    async def select_callback(self, interaction: discord.Interaction):
+        selected_values = interaction.data['values']
+        self.value = selected_values[0]  # Assign the list of selected values
+        await interaction.response.send_message(f"Team score set at: {selected_values[0]}")
+        self.stop()
+
 
 @client.command()
 @commands.is_owner()
@@ -86,7 +110,7 @@ async def sync(ctx: commands.Context):
 @client.hybrid_command(name='listrank')
 async def list_rank(ctx):
     player_list = players.get_all_current_ranking()
-    sorted_list = sorted(player_list, key=lambda x: x['rating'])
+    sorted_list = sorted(player_list, key=lambda x: (x['rating'], x['wins']), reverse=True)
 
     for i in range(len(sorted_list)):
         sorted_list[i]['rank'] = i + 1
@@ -113,20 +137,29 @@ async def save_match(ctx):
     player_list = players.retrieve_player_list()
     player_list = sorted(player_list, key=lambda x: x['first_name'])
 
+    # Select team 1 players
     view_1 = PlayerSelectView(player_list)
     await ctx.send("Select up to two players for team 1:", view=view_1)
     await view_1.wait()
     team_1 = view_1.value
 
+    # Select team 1 score
+    score_1_view = ScoreSelectView()
+    await ctx.send("Select team 1 score:", view=score_1_view)
+    await score_1_view.wait()
+    team_1_score = int(score_1_view.value)
+
+    # remove team 1 players from choices
     filtered_players = []
     for p in player_list:
         if str(p['player_id']) not in team_1:
             filtered_players.append(p)
 
-    team_2 = []
 
+    # Select team 2 players
     if len(filtered_players) == 0 or (len(filtered_players) == 1 and len(team_1) == 2):
         await ctx.send("Not enough remaining players to add to team 2...")
+        return
     elif len(filtered_players) == 1:
         confirm_view = Confirm()
         await ctx.send(f'Is team 2 {filtered_players[0]['first_name']} {filtered_players[0]['last_name'][0].upper()}.?', view=confirm_view)
@@ -138,6 +171,16 @@ async def save_match(ctx):
         await ctx.send(f'Select {quantity} player(s) for team 2:', view=view_2)
         await view_2.wait()
         team_2 = view_2.value
+
+    # Select team 2 score
+    score_2_view = ScoreSelectView()
+    await ctx.send("Select team 2 score:", view=score_2_view)
+    await score_2_view.wait()
+    team_2_score = int(score_2_view.value)
+
+    await ctx.send('Match successfully added' if players.add_match(team_1, team_2, team_1_score, team_2_score) else 'Error adding match...')
+
+
 
 
 

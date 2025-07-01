@@ -66,21 +66,27 @@ class Player:
 
         cursor = self.conn.cursor()
 
-        cursor.execute("SELECT * FROM matches where player_1_id = ?", (player_id,))
+        cursor.execute("SELECT * FROM matches where team_1_player_1_id = ? or team_1_player_2_id = ?",
+                       (player_id, player_id))
+        # cursor.execute("SELECT * FROM matches where player_1_id = ?", (player_id,))
         match_rows_1 = cursor.fetchall()
 
-        cursor.execute("SELECT * FROM matches where player_2_id = ?", (player_id,))
+        cursor.execute(
+            "SELECT * FROM matches where team_2_player_1_id = ? or team_2_player_2_id = ?",
+            (player_id, player_id))
+        # cursor.execute("SELECT * FROM matches where player_2_id = ?", (player_id,))
         match_rows_2 = cursor.fetchall()
 
+        # games = len(match_rows_1)
         games = len(match_rows_1) + len(match_rows_2)
         wins = 0
         losses = 0
 
         for match in match_rows_1:
-            wins, losses = update_wins_losses(match[3], match[4], wins, losses)
+            wins, losses = update_wins_losses(match[5], match[6], wins, losses)
 
         for match in match_rows_2:
-            wins, losses = update_wins_losses(match[4], match[3], wins, losses)
+            wins, losses = update_wins_losses(match[6], match[5], wins, losses)
 
         return { 'wins': wins, 'losses': losses, 'games': games, 'percent' : wins/games * 100 if games > 0 else 0}
 
@@ -111,19 +117,19 @@ class Player:
                 (team_1[0], team_2[0], team_1_score, team_2_score))
         elif len(team_1) == 2 and len(team_2) == 2:
             cursor.execute(
-                "INSERT INTO matches (team_1_player_1_id, team_1_player_1_id, team_1_player_1_id, team_1_player_1_id, team_1_score, team_2_score) VALUES (?, ?, ?, ?)",
-                (player_1_id, player_2_id, player_1_score, player_2_score))
+                "INSERT INTO matches (team_1_player_1_id, team_1_player_2_id, team_2_player_1_id, team_2_player_2_id, team_1_score, team_2_score) VALUES (?, ?, ?, ?, ?, ?)",
+                (team_1[0], team_1[1], team_2[0], team_2[1], team_1_score, team_2_score))
         else:
             raise Exception("Team 1 and Team 2 not same size")
         self.conn.commit()
         cursor.close()
         return True
 
-    def add_match(self, player_1_id: int, player_2_id: int, player_1_score:int, player_2_score:int):
-        cursor = self.conn.cursor()
-        cursor.execute("INSERT INTO matches (player_1_id, player_2_id, player_1_score, player_2_score) VALUES (?, ?, ?, ?)", (player_1_id, player_2_id, player_1_score, player_2_score))
-        self.conn.commit()
-        cursor.close()
+    # def add_match(self, player_1_id: int, player_2_id: int, player_1_score:int, player_2_score:int):
+    #     cursor = self.conn.cursor()
+    #     cursor.execute("INSERT INTO matches (player_1_id, player_2_id, player_1_score, player_2_score) VALUES (?, ?, ?, ?)", (player_1_id, player_2_id, player_1_score, player_2_score))
+    #     self.conn.commit()
+    #     cursor.close()
 
     def retrieve_player_list(self) -> list:
         cursor = self.conn.cursor()
