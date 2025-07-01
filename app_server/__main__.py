@@ -1,4 +1,5 @@
 import asyncio
+import io
 
 import discord
 from discord.ext import commands
@@ -7,6 +8,13 @@ from discord.ui import Button, View, Select
 from table2ascii import table2ascii as t2a, PresetStyle
 
 from app_server.backend.players import Player
+
+import pandas as pd
+import matplotlib
+import matplotlib.pyplot as plt
+from plottable import ColumnDefinition, Table
+from plottable.cmap import normed_cmap
+from plottable.plots import image
 
 
 
@@ -124,7 +132,81 @@ async def list_rank(ctx):
     user_id = ctx.author.id
     print(f"Your user ID is: {user_id}")
 
-    await ctx.send(f"```\n{output}\n```")
+    bg_color = "#FFFFFF"
+    text_color = "#000000"
+
+    df = pd.DataFrame(sorted_list)
+    new_order = ['rank', 'name', 'games', 'wins', 'losses', 'percent']
+    df_reorderd = df[new_order]
+
+    df['percent'] = df['percent'].map('{:,.2f}'.format).astype(str)
+    df_reorderd.update(df[['percent']].astype(float))
+
+
+    col_defs = [
+        ColumnDefinition(name="rank",
+                         title="Rank",
+                         textprops={"ha": "left", "weight": "bold"},
+                         group="Player", ),
+        ColumnDefinition(name="name",
+                         title="Name",
+                         textprops={"ha": "left"},
+                         group="Player"),
+        ColumnDefinition(name="games",
+                         title="Games Played",
+                         textprops={"ha": "center"},
+                         group="Stats"),
+        ColumnDefinition(name="wins",
+                         title="Wins",
+                         textprops={"ha": "center"},
+                         group="Stats"),
+        ColumnDefinition(name="losses",
+                         title="Losses",
+                         textprops={"ha": "center"},
+                         group="Stats"),
+        ColumnDefinition(name="percent",
+                         title="Win %",
+                         textprops={"ha": "center", "color": text_color, "weight": "bold"},
+                         group="Stats",
+                         cmap=normed_cmap(df_reorderd['percent'], cmap=matplotlib.colormaps['RdYlGn'], num_stds=2))
+    ]
+
+    height = max(len(sorted_list) - 3, 4)
+
+
+    fig, ax = plt.subplots(figsize=(10, height))
+    ax.axis('off')  # Hide axes
+    fig.set_facecolor(bg_color)
+    ax.set_facecolor(bg_color)
+    table = Table(
+        df_reorderd,
+        column_definitions=col_defs,
+        index_col="rank",
+        row_dividers=True,
+        footer_divider=True,
+        textprops={'fontsize': 14},
+        ax=ax
+
+    )
+
+    buffer = io.BytesIO()
+    fig.savefig(
+        buffer,
+        format='png',  # Specify the format (e.g., 'png', 'jpeg', 'pdf')
+        dpi=200,
+        bbox_inches="tight"
+    )
+    buffer.seek(0)
+
+    plt.close(fig)
+    try:
+        await ctx.send(file=discord.File(buffer, filename="rankings.png"))
+        await ctx.send("Current rankings!")
+    except Exception as e:
+        await ctx.send(f"An error occurred while sending the plot: {e}")
+        print(f"Error sending plot: {e}")
+
+
 
 
 @client.command(name='addplayer')
