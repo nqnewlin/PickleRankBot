@@ -132,7 +132,7 @@ async def add_player(ctx, first_name: str, last_name: str):
     created = players.create_new_player(first_name, last_name)
     await ctx.send(f'Added {first_name} {last_name[0].upper()}' if created else 'Error adding player')
 
-@client.command(name='savematch')
+@client.hybrid_command(name='savematch')
 async def save_match(ctx):
     player_list = players.retrieve_player_list()
     player_list = sorted(player_list, key=lambda x: x['first_name'])

@@ -1,4 +1,5 @@
 import sqlite3
+from app_server.backend import rating as Rating
 
 DATABASE = 'pickle_rank.db'
 PLAYER_TABLE = 'players'
@@ -122,14 +123,55 @@ class Player:
         else:
             raise Exception("Team 1 and Team 2 not same size")
         self.conn.commit()
+
+        self.__update_player_ratings(team_1, team_2, team_1_score, team_2_score)
+
         cursor.close()
         return True
 
-    # def add_match(self, player_1_id: int, player_2_id: int, player_1_score:int, player_2_score:int):
-    #     cursor = self.conn.cursor()
-    #     cursor.execute("INSERT INTO matches (player_1_id, player_2_id, player_1_score, player_2_score) VALUES (?, ?, ?, ?)", (player_1_id, player_2_id, player_1_score, player_2_score))
-    #     self.conn.commit()
-    #     cursor.close()
+    def __update_player_ratings(self, team_1: list[int], team_2: list[int], team_1_score: int, team_2_score: int):
+        team_1_player_1 = self.__get_player_stats(team_1[0])
+        team_1_player_2 = self.__get_player_stats(team_1[1]) if len(team_1) > 1  else (None, None)
+        team_2_player_1 = self.__get_player_stats(team_2[0])
+        team_2_player_2 = self.__get_player_stats(team_2[1]) if len(team_2) > 1 else (None, None)
+
+        team_1_rating = Rating.calculate_team_rating(team_1_player_1[0], team_1_player_2[0])
+        team_2_rating = Rating.calculate_team_rating(team_2_player_1[0], team_2_player_2[0])
+
+        team_1_score_calc, team_2_score_calc = Rating.calculate_score(team_1_score, team_2_score)
+
+        team_1_player_1_update = Rating.calculate_player_ranking_update(team_1_rating, team_2_rating, team_1_score_calc, team_1_player_1[1])
+        self.__update_rating(team_1[0], int(team_1_player_1[0] + team_1_player_1_update))
+        if len(team_1) > 1:
+            team_1_player_2_update = Rating.calculate_player_ranking_update(team_1_rating, team_2_rating, team_1_score_calc, team_1_player_2[1])
+            self.__update_rating(team_1[1], int(team_1_player_2[0] + team_1_player_2_update))
+        team_2_player_1_update = Rating.calculate_player_ranking_update(team_2_rating, team_1_rating, team_2_score_calc, team_2_player_1[1])
+        self.__update_rating(team_2[0], int(team_2_player_1[0] + team_2_player_1_update))
+        if len(team_2) > 1:
+            team_2_player_2_update = Rating.calculate_player_ranking_update(team_2_rating, team_1_rating, team_2_score_calc, team_2_player_2[1])
+            self.__update_rating(team_2[1], int(team_2_player_2[0] + team_2_player_2_update))
+
+
+
+    def __update_rating(self, player_id: int, rating: int):
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE players set rating = ? where player_id = ?", (rating, player_id))
+        self.conn.commit()
+
+    def __get_player_stats(self, player_id:int) -> tuple[int, int]:
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT rating from players where player_id = ?", (player_id,))
+        rating = cursor.fetchone()[0]
+        cursor.execute("SELECT match_id FROM matches where team_1_player_1_id = ? or team_1_player_2_id = ? or team_2_player_1_id = ? or team_2_player_2_id = ?",
+                       (player_id, player_id, player_id, player_id))
+        games_played = len(cursor.fetchall())
+        return rating, games_played
+
+
+
+
+
+
 
     def retrieve_player_list(self) -> list:
         cursor = self.conn.cursor()

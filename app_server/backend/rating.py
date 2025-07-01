@@ -86,7 +86,7 @@ def calculate_k(games: int, rating: int) -> int:
 
 
 
-def update_player_ranking(rank_player: int, rank_opponent: int, outcome_score: float, games: int) -> float:
+def calculate_player_ranking_update(rank_player: float, rank_opponent: float, outcome_score: float, games: int) -> float:
     """
     :param rank_player: ELO rating of player
     :param rank_opponent: ELO rating of opponent
@@ -97,7 +97,7 @@ def update_player_ranking(rank_player: int, rank_opponent: int, outcome_score: f
     expected = calculate_expected_score(rank_player, rank_opponent)
     k = calculate_k(games, rank_player)
     update_qty = k * (outcome_score - expected)
-    return rank_player + update_qty
+    return update_qty
 
 
 
@@ -119,6 +119,8 @@ def update_player_rankings(rank_1: int, rank_2: int, player_1_outcome: float) ->
     return rank_1 + update_qty, rank_2 - update_qty
 
 def calculate_team_rating(player_1_rating: float, player_2_rating: float) -> float:
+    if player_2_rating is None:
+        return player_1_rating
     if player_1_rating < player_2_rating:
         return (player_1_rating * LOWER_PLAYER_RATIO) + (player_2_rating * (1.0 - LOWER_PLAYER_RATIO))
     else:
@@ -136,8 +138,8 @@ if __name__ == '__main__':
     print(f'Team 2 score: {team_2}')
     #
     # player_1_updated, player_2_updated = update_player_rankings(player_1, player_2, team_1)
-    player_1_updated = update_player_ranking(1500, 1500, team_1, 1)
-    player_2_updated = update_player_ranking(1500, 1500, team_2, 1)
+    player_1_updated = calculate_player_ranking_update(1500, 1500, team_1, 1)
+    player_2_updated = calculate_player_ranking_update(1500, 1500, team_2, 1)
     print(f'Player 1 updated: {player_1_updated}')
     print(f'Player 2 updated: {player_2_updated}')
 
