@@ -1,6 +1,7 @@
 import asyncio
 import io
 import os
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -82,7 +83,8 @@ class PlayerSelectView(View):
         # Create the Select component dynamically
         options = []
         for p in self.player_list:
-            options.append(discord.SelectOption(label=f"{p['first_name']} {p['last_name'][0].upper()}.",
+            player_label = f"{p['first_name']} {p['last_name'][0].upper()}." if p['last_name'] else p['first_name']
+            options.append(discord.SelectOption(label=player_label,
                                                 value=p['player_id']))  # Assuming 'id' as a unique value
 
         select = Select(
@@ -101,10 +103,11 @@ class PlayerSelectView(View):
         selected_values = interaction.data['values']
         self.value = selected_values  # Assign the list of selected values
 
-        # You can now process multiple selected values
+
         selected_names = [
-            f"{p['first_name']} {p['last_name'][0].upper()}." for p in self.player_list if
-            str(p.get('player_id')) in selected_values
+            f"{p['first_name']} {p['last_name'][0].upper()}."
+            if p.get('last_name') else p['first_name']
+            for p in self.player_list if str(p.get('player_id')) in selected_values
         ]
 
         await interaction.response.send_message(f"You selected: {', '.join(selected_names)}")
@@ -147,94 +150,91 @@ async def sync(ctx: commands.Context):
 @client.hybrid_command(name='listrank')
 async def list_rank(ctx):
     player_list = players.get_all_current_ranking()
-    # sorted_list = sorted(player_list, key=lambda x: (x['rating'], x['wins']), reverse=True)
-    #
-    # for i in range(len(sorted_list)):
-    #     sorted_list[i]['rank'] = i + 1
 
-    output = t2a(
-        header=["Rank", "Name", "Games Played", "Wins", "Losses", "Win %"],
-        body=[[player['rank'], player['name'], player['games'], player['wins'], player['losses'], player['percent']] for
-              player in player_list],
-        first_col_heading=True
-    )
+    if player_list:
+        output = t2a(
+            header=["Rank", "Name", "Games Played", "Wins", "Losses", "Win %"],
+            body=[[player['rank'], player['name'], player['games'], player['wins'], player['losses'], player['percent']] for
+                  player in player_list],
+            first_col_heading=True
+        )
 
-    user_id = ctx.author.id
-    logger.debug(f"Your user ID is: {user_id}")
-    # print(f"Your user ID is: {user_id}")
+        user_id = ctx.author.id
+        logger.debug(f"Your user ID is: {user_id}")
 
-    bg_color = "#FFFFFF"
-    text_color = "#000000"
+        bg_color = "#FFFFFF"
+        text_color = "#000000"
 
-    df = pd.DataFrame(player_list)
-    new_order = ['rank', 'name', 'games', 'wins', 'losses', 'percent']
-    df_reorderd = df[new_order]
+        df = pd.DataFrame(player_list)
+        new_order = ['rank', 'name', 'games', 'wins', 'losses', 'percent']
+        df_reorderd = df[new_order]
 
-    df['percent'] = df['percent'].map('{:,.2f}'.format).astype(str)
-    df_reorderd.update(df[['percent']].astype(float))
+        df['percent'] = df['percent'].map('{:,.2f}'.format).astype(str)
+        df_reorderd.update(df[['percent']].astype(float))
 
-    col_defs = [
-        ColumnDefinition(name="rank",
-                         title="Rank",
-                         textprops={"ha": "left", "weight": "bold"},
-                         group="Player", ),
-        ColumnDefinition(name="name",
-                         title="Name",
-                         textprops={"ha": "left"},
-                         group="Player"),
-        ColumnDefinition(name="games",
-                         title="Games Played",
-                         textprops={"ha": "center"},
-                         group="Stats"),
-        ColumnDefinition(name="wins",
-                         title="Wins",
-                         textprops={"ha": "center"},
-                         group="Stats"),
-        ColumnDefinition(name="losses",
-                         title="Losses",
-                         textprops={"ha": "center"},
-                         group="Stats"),
-        ColumnDefinition(name="percent",
-                         title="Win %",
-                         textprops={"ha": "center", "color": text_color, "weight": "bold"},
-                         group="Stats",
-                         cmap=normed_cmap(df_reorderd['percent'], cmap=matplotlib.colormaps['RdYlGn'], num_stds=2))
-    ]
+        col_defs = [
+            ColumnDefinition(name="rank",
+                             title="Rank",
+                             textprops={"ha": "left", "weight": "bold"},
+                             group="Player", ),
+            ColumnDefinition(name="name",
+                             title="Name",
+                             textprops={"ha": "left"},
+                             group="Player"),
+            ColumnDefinition(name="games",
+                             title="Games Played",
+                             textprops={"ha": "center"},
+                             group="Stats"),
+            ColumnDefinition(name="wins",
+                             title="Wins",
+                             textprops={"ha": "center"},
+                             group="Stats"),
+            ColumnDefinition(name="losses",
+                             title="Losses",
+                             textprops={"ha": "center"},
+                             group="Stats"),
+            ColumnDefinition(name="percent",
+                             title="Win %",
+                             textprops={"ha": "center", "color": text_color, "weight": "bold"},
+                             group="Stats",
+                             cmap=normed_cmap(df_reorderd['percent'], cmap=matplotlib.colormaps['RdYlGn'], num_stds=2))
+        ]
 
-    height = max(len(player_list) - 3, 4)
+        height = max(len(player_list) - 3, 4)
 
-    fig, ax = plt.subplots(figsize=(10, height))
-    ax.axis('off')  # Hide axes
-    fig.set_facecolor(bg_color)
-    ax.set_facecolor(bg_color)
-    table = Table(
-        df_reorderd,
-        column_definitions=col_defs,
-        index_col="rank",
-        row_dividers=True,
-        footer_divider=True,
-        textprops={'fontsize': 14},
-        ax=ax
+        fig, ax = plt.subplots(figsize=(10, height))
+        ax.axis('off')  # Hide axes
+        fig.set_facecolor(bg_color)
+        ax.set_facecolor(bg_color)
+        table = Table(
+            df_reorderd,
+            column_definitions=col_defs,
+            index_col="rank",
+            row_dividers=True,
+            footer_divider=True,
+            textprops={'fontsize': 14},
+            ax=ax
 
-    )
+        )
 
-    buffer = io.BytesIO()
-    fig.savefig(
-        buffer,
-        format='png',
-        dpi=200,
-        bbox_inches="tight"
-    )
-    buffer.seek(0)
+        buffer = io.BytesIO()
+        fig.savefig(
+            buffer,
+            format='png',
+            dpi=200,
+            bbox_inches="tight"
+        )
+        buffer.seek(0)
 
-    plt.close(fig)
-    try:
-        await ctx.send(file=discord.File(buffer, filename="rankings.png"))
-        await ctx.send("Current rankings!")
-    except Exception as e:
-        await ctx.send(f"An error occurred while sending the plot: {e}")
-        logger.error(f"Error sending plot: {e}")
-        # print(f"Error sending plot: {e}")
+        plt.close(fig)
+        try:
+            await ctx.send(file=discord.File(buffer, filename="rankings.png"))
+            await ctx.send("Current rankings!")
+        except Exception as e:
+            await ctx.send(f"An error occurred while sending the plot: {e}")
+            logger.error(f"Error sending plot: {e}")
+    else:
+        await ctx.send("No players available")
 
 
 @client.hybrid_command(name='addplayer')
@@ -291,11 +291,111 @@ async def save_match(ctx) -> list:
 
     await ctx.send('Match successfully added' if players.add_match(team_1, team_2, team_1_score,
                                                                    team_2_score) else 'Error adding match...')
+@client.hybrid_command(name='playerhistory')
+async def list_matches(ctx, count:Optional[int] = 10):
+    player_list = players.retrieve_player_list()
+    if not player_list:
+        await ctx.send('No players available')
+
+    player_list = sorted(player_list, key=lambda x: x['first_name'])
+
+    # Select player
+    view_1 = PlayerSelectView(player_list, 1)
+    await ctx.send("Select player for match history:", view=view_1)
+    await view_1.wait()
+    team_1 = view_1.value
+
+    # remove team 1 players from choices
+    filtered_players = []
+    player_name = None
+    for p in player_list:
+        if str(p['player_id']) not in team_1:
+            filtered_players.append(p)
+        else:
+            player_name = f"{p['first_name']} {p['last_name'][0].upper()}." if p['last_name'] else p['first_name']
+
+    filtered_players.insert(0, {'player_id': -1, 'first_name':'ALL', 'last_name':None})
+
+    view_2 = PlayerSelectView(filtered_players, 1)
+    await ctx.send(f"Select match opponent or 'ALL'", view=view_2)
+    await view_2.wait()
+    team_2 = view_2.value
+
+    matches = players.get_player_matches(count, int(team_1[0]), int(team_2[0]))
+
+    if not matches:
+        await ctx.send('No match history for selected player(s)')
+
+    bg_color = "#FFFFFF"
+    text_color = "#000000"
+
+    df = pd.DataFrame(matches)
+    new_order = ['result', 'partner', 'opponent', 'score', 'opponent_score', 'date']
+    df_reordered = df[new_order]
+
+    col_defs = [
+        ColumnDefinition(name="date",
+                         title="Date",
+                         textprops={"ha": "left"}),
+        ColumnDefinition(name="result",
+                         title="Result",
+                         textprops={"ha": "left", "weight": "bold"}),
+        ColumnDefinition(name="partner",
+                         title="Partner",
+                         textprops={"ha": "left"},
+                         group='Players'),
+        ColumnDefinition(name="opponent",
+                         title="Opponent",
+                         textprops={"ha": "left"},
+                         group='Players'),
+        ColumnDefinition(name="score",
+                         title="Score",
+                         textprops={"ha": "center"},
+                         group="Score"),
+        ColumnDefinition(name="opponent_score",
+                         title="Opponent Score",
+                         textprops={"ha": "center"},
+                         group="Score"),
+        ]
+    height = max(len(player_list) - 3, 4)
+
+    plt.title("Sports Watch Data")
+
+    fig, ax = plt.subplots(figsize=(20, height))
+    ax.axis('off')  # Hide axes
+    fig.set_facecolor(bg_color)
+    ax.set_facecolor(bg_color)
+
+    fig.suptitle(f"{player_name} Match History", fontsize=24, fontweight='bold', color='black')
+
+    table = Table(
+        df_reordered,
+        column_definitions=col_defs,
+        index_col="date",
+        row_dividers=True,
+        footer_divider=True,
+        textprops={'fontsize': 14},
+        ax=ax
+    )
+
+    buffer = io.BytesIO()
+    fig.savefig(
+        buffer,
+        format='png',
+        dpi=200,
+        bbox_inches="tight"
+    )
+    buffer.seek(0)
+
+    plt.close(fig)
+    try:
+        await ctx.send(file=discord.File(buffer, filename="rankings.png"))
+        await ctx.send("Match History!")
+    except Exception as e:
+        await ctx.send(f"An error occurred while sending the plot: {e}")
+        logger.error(f"Error sending plot: {e}")
 
 
-@client.command()
-async def show_menu(ctx):
-    await ctx.send("Here's your menu:", view=PlayerSelectView())
 
 
 @client.hybrid_command()

@@ -1,4 +1,6 @@
 import sqlite3
+from typing import Optional
+
 from app_server.backend import rating as Rating
 import logging
 
@@ -79,6 +81,76 @@ class Player:
             last_rating = p['rating']
 
         return sorted_players
+
+    def get_player_matches(self, match_count: int, player_id: int, opp_id: Optional[int] = None):
+
+        cursor = self.conn.cursor()
+        if opp_id and int(opp_id) > 0:
+            cursor.execute("SELECT * FROM matches where (team_1_player_1_id = ? or team_1_player_2_id = ?) and (team_2_player_1_id = ? or team_2_player_2_id = ?) order by game_ts desc limit ?",
+                           (player_id, player_id, opp_id, opp_id, match_count))
+            match_rows_1 = cursor.fetchall()
+            cursor.execute(
+                "SELECT * FROM matches where (team_2_player_1_id = ? or team_2_player_2_id = ?) and (team_1_player_1_id = ? or team_1_player_2_id = ?) order by game_ts desc limit ?",
+                (player_id, player_id, opp_id, opp_id, match_count))
+            match_rows_2 = cursor.fetchall()
+        else:
+            cursor.execute(
+                "SELECT * FROM matches where team_1_player_1_id = ? or team_1_player_2_id = ? order by game_ts desc limit ?",
+                (player_id, player_id, match_count))
+            match_rows_1 = cursor.fetchall()
+            cursor.execute(
+                "SELECT * FROM matches where team_2_player_1_id = ? or team_2_player_2_id = ? order by game_ts desc limit ?",
+                (player_id, player_id, match_count))
+            match_rows_2 = cursor.fetchall()
+        cursor.execute("SELECT * FROM players")
+        player_list = cursor.fetchall()
+
+        matches = []
+        for m in match_rows_1:
+            partner_id = m[2] if m[1] == player_id else m[1]
+            partner_name = next((f"{name[1]} {name[2][0].upper()}." if name[2] else name[1]
+                            for name in player_list if name[0] == partner_id), 'None')
+            opp_1_name = next((f"{name[1]} {name[2][0].upper()}." if name[2] else name[1]
+                            for name in player_list if name[0] == m[3]), None)
+            opp_2_name = next((f"{name[1]} {name[2][0].upper()}." if name[2] else name[1]
+                               for name in player_list if name[0] == m[4]), None)
+            opp_team = f"{opp_1_name} & {opp_2_name}" if opp_2_name else opp_1_name
+            matches.append({'result': 'Win' if m[5] > m[6] else 'Loss',
+                            'score': m[5],
+                            'opponent_score': m[6],
+                            'partner': partner_name,
+                            'opponent': opp_team,
+                            'date': m[7]
+                        })
+
+        for m in match_rows_2:
+            partner_id = m[4] if m[3] == player_id else m[3]
+            partner_name = next((f"{name[1]}{name[2][0].upper()}." if name[2] else name[1]
+                                 for name in player_list if name[0] == partner_id), 'None')
+            opp_1_name = next((f"{name[1]} {name[2][0].upper()}." if name[2] else name[1]
+                               for name in player_list if name[0] == m[1]), None)
+            opp_2_name = next((f"{name[1]} {name[2][0].upper()}." if name[2] else name[1]
+                               for name in player_list if name[0] == m[2]), None)
+            opp_team = f"{opp_1_name} & {opp_2_name}" if opp_2_name else opp_1_name
+            matches.append({'result': 'Win' if m[6] > m[5] else 'Loss',
+                            'score': m[6],
+                            'opponent_score': m[5],
+                            'partner': partner_name,
+                            'opponent': opp_team,
+                            'date': m[7]
+                            })
+
+        matches.sort(key=lambda x: x['date'], reverse=True)
+        return matches[0:match_count]
+
+
+
+
+
+
+
+
+
 
     def _get_player_match_history(self, player_id: int) -> dict[str, int]:
 
