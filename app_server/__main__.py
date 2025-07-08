@@ -1,5 +1,6 @@
 import asyncio
 import io
+import os
 
 import discord
 from discord.ext import commands
@@ -14,17 +15,41 @@ import matplotlib
 import matplotlib.pyplot as plt
 from plottable import ColumnDefinition, Table
 from plottable.cmap import normed_cmap
-from plottable.plots import image
+import logging
+from dotenv import load_dotenv
 
+load_dotenv()
 
+logger = logging.getLogger('bot_logger')
+logger.setLevel(logging.DEBUG)
 
-token = 'MTM4NzgyNjg3OTI1MTIyMjY2OQ.GMHeg3.xY0g06occEWamvhWUqM3-QMH-Ck23nvTWa7EZM'
+file_handler = logging.FileHandler('app.log', mode='a', encoding='utf-8')
+file_handler.setLevel(logging.INFO) # Typically INFO or WARNING for file logs
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+# 2. Conditional Console Handler
+# Check the deployment environment variable
+deployment_env = os.getenv('DEPLOYMENT_ENV', 'development') # Default to 'development' if not set
+
+if deployment_env == 'development':
+    # Add a StreamHandler (for console output) only in development
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG) # Typically DEBUG for local development
+    # You might want a different, simpler format for the console
+    console_formatter = logging.Formatter('%(levelname)s - %(name)s - %(message)s')
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+
+token = os.getenv('DISCORD_TOKEN')
 
 intents = discord.Intents.default()
-intents.message_content = True # Required to read message content
+intents.message_content = True  # Required to read message content
 
 client = commands.Bot(command_prefix='!', intents=intents)
 players = Player()
+
 
 class Confirm(discord.ui.View):
     def __init__(self):
@@ -47,6 +72,7 @@ class Confirm(discord.ui.View):
         self.value = False
         self.stop()
 
+
 class PlayerSelectView(View):
     def __init__(self, player_list: list[dict], quantity: int = None):
         super().__init__()
@@ -56,7 +82,8 @@ class PlayerSelectView(View):
         # Create the Select component dynamically
         options = []
         for p in self.player_list:
-            options.append(discord.SelectOption(label=f"{p['first_name']} {p['last_name'][0].upper()}.", value=p['player_id']))  # Assuming 'id' as a unique value
+            options.append(discord.SelectOption(label=f"{p['first_name']} {p['last_name'][0].upper()}.",
+                                                value=p['player_id']))  # Assuming 'id' as a unique value
 
         select = Select(
             placeholder="Choose an option",
@@ -76,11 +103,13 @@ class PlayerSelectView(View):
 
         # You can now process multiple selected values
         selected_names = [
-            f"{p['first_name']} {p['last_name'][0].upper()}." for p in self.player_list if str(p.get('player_id')) in selected_values
+            f"{p['first_name']} {p['last_name'][0].upper()}." for p in self.player_list if
+            str(p.get('player_id')) in selected_values
         ]
 
         await interaction.response.send_message(f"You selected: {', '.join(selected_names)}")
         self.stop()
+
 
 class ScoreSelectView(View):
     def __init__(self):
@@ -110,7 +139,7 @@ class ScoreSelectView(View):
 @client.command()
 @commands.is_owner()
 async def sync(ctx: commands.Context):
-    synced = await client.tree.sync() # Syncs globally
+    synced = await client.tree.sync()  # Syncs globally
 
     await ctx.send(f"Synced {len(synced)} commands.")
 
@@ -118,30 +147,31 @@ async def sync(ctx: commands.Context):
 @client.hybrid_command(name='listrank')
 async def list_rank(ctx):
     player_list = players.get_all_current_ranking()
-    sorted_list = sorted(player_list, key=lambda x: (x['rating'], x['wins']), reverse=True)
-
-    for i in range(len(sorted_list)):
-        sorted_list[i]['rank'] = i + 1
+    # sorted_list = sorted(player_list, key=lambda x: (x['rating'], x['wins']), reverse=True)
+    #
+    # for i in range(len(sorted_list)):
+    #     sorted_list[i]['rank'] = i + 1
 
     output = t2a(
         header=["Rank", "Name", "Games Played", "Wins", "Losses", "Win %"],
-        body=[[player['rank'], player['name'], player['games'], player['wins'], player['losses'], player['percent']] for player in sorted_list],
+        body=[[player['rank'], player['name'], player['games'], player['wins'], player['losses'], player['percent']] for
+              player in player_list],
         first_col_heading=True
     )
 
     user_id = ctx.author.id
-    print(f"Your user ID is: {user_id}")
+    logger.debug(f"Your user ID is: {user_id}")
+    # print(f"Your user ID is: {user_id}")
 
     bg_color = "#FFFFFF"
     text_color = "#000000"
 
-    df = pd.DataFrame(sorted_list)
+    df = pd.DataFrame(player_list)
     new_order = ['rank', 'name', 'games', 'wins', 'losses', 'percent']
     df_reorderd = df[new_order]
 
     df['percent'] = df['percent'].map('{:,.2f}'.format).astype(str)
     df_reorderd.update(df[['percent']].astype(float))
-
 
     col_defs = [
         ColumnDefinition(name="rank",
@@ -171,8 +201,7 @@ async def list_rank(ctx):
                          cmap=normed_cmap(df_reorderd['percent'], cmap=matplotlib.colormaps['RdYlGn'], num_stds=2))
     ]
 
-    height = max(len(sorted_list) - 3, 4)
-
+    height = max(len(player_list) - 3, 4)
 
     fig, ax = plt.subplots(figsize=(10, height))
     ax.axis('off')  # Hide axes
@@ -204,15 +233,15 @@ async def list_rank(ctx):
         await ctx.send("Current rankings!")
     except Exception as e:
         await ctx.send(f"An error occurred while sending the plot: {e}")
-        print(f"Error sending plot: {e}")
+        logger.error(f"Error sending plot: {e}")
+        # print(f"Error sending plot: {e}")
 
 
-
-
-@client.command(name='addplayer')
+@client.hybrid_command(name='addplayer')
 async def add_player(ctx, first_name: str, last_name: str):
     created = players.create_new_player(first_name, last_name)
     await ctx.send(f"Added {first_name} {last_name[0].upper()}" if created else 'Error adding player')
+
 
 @client.hybrid_command(name='savematch')
 async def save_match(ctx) -> list:
@@ -237,14 +266,14 @@ async def save_match(ctx) -> list:
         if str(p['player_id']) not in team_1:
             filtered_players.append(p)
 
-
     # Select team 2 players
     if len(filtered_players) == 0 or (len(filtered_players) == 1 and len(team_1) == 2):
         await ctx.send("Not enough remaining players to add to team 2...")
         return
     elif len(filtered_players) == 1:
         confirm_view = Confirm()
-        await ctx.send(f"Is team 2 {filtered_players[0]['first_name']} {filtered_players[0]['last_name'][0].upper()}.?", view=confirm_view)
+        await ctx.send(f"Is team 2 {filtered_players[0]['first_name']} {filtered_players[0]['last_name'][0].upper()}.?",
+                       view=confirm_view)
         await confirm_view.wait()
         team_2 = [str(filtered_players[0]['player_id'])]
     else:
@@ -260,25 +289,9 @@ async def save_match(ctx) -> list:
     await score_2_view.wait()
     team_2_score = int(score_2_view.value)
 
-    await ctx.send('Match successfully added' if players.add_match(team_1, team_2, team_1_score, team_2_score) else 'Error adding match...')
+    await ctx.send('Match successfully added' if players.add_match(team_1, team_2, team_1_score,
+                                                                   team_2_score) else 'Error adding match...')
 
-
-
-
-
-
-
-
-    # try:
-    #     response = await bot.wait_for(
-    #         "message",
-    #         check=lambda message: message.author == ctx.author,
-    #         timeout=10.0,
-    #     )
-    #     await ctx.send(f"Your favorite color is {response.content}!")
-    #
-    # except Exception as e:
-    #     await ctx.send("You took too long to answer!")
 
 @client.command()
 async def show_menu(ctx):
@@ -286,9 +299,36 @@ async def show_menu(ctx):
 
 
 @client.hybrid_command()
-async def ping(ctx, name:str):
-  await ctx.send('Pong!')
+async def ping(ctx, name: str):
+    await ctx.send('Pong!')
 
 
-client.run(token)
+async def send_keep_alive_message():
+    await client.wait_until_ready()
+    # Replace 'YOUR_CHANNEL_ID' with an actual channel ID your bot has access to
+    # Consider sending to a private "log" channel, or just printing to console.
+    log_channel_id = 1389746017892569100  # Replace with your channel ID
+    try:
+        channel = client.get_channel(log_channel_id)
+        if channel:
+            while not client.is_closed():
+                # This could be a very light message, or just logging internally.
+                # Sending a message to Discord every X minutes can be spammy.
+                # A better "internal" heartbeat might just be logging.
+                print(f"[{client.user}] Internal keep-alive check: Still running...")
+                # await channel.send("Bot is still alive!", delete_after=60) # Sends and deletes after 60s
+                await asyncio.sleep(300)  # Send every 5 minutes (adjust as needed)
+        else:
+            print(f"Warning: Log channel with ID {log_channel_id} not found for keep-alive.")
+    except Exception as e:
+        print(f"Error in send_keep_alive_message: {e}")
 
+
+if __name__ == '__main__':
+    client.run(
+        token=os.getenv('DISCORD_TOKEN'),
+        log_level=logging.DEBUG,
+        log_handler=console_handler if deployment_env == 'development' else file_handler,
+        log_formatter=formatter,
+        reconnect=True
+    )

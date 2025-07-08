@@ -1,11 +1,16 @@
 import sqlite3
 from app_server.backend import rating as Rating
+import logging
+
+logger = logging.getLogger('bot_logger')
 
 DATABASE = 'pickle_rank.db'
 PLAYER_TABLE = 'players'
 MATCHES_TABLE = 'matches'
 
 DEFAULT_RANK = 1500
+
+
 
 class Player:
 
@@ -60,8 +65,20 @@ class Player:
             player_history['name'] = name
             players.append(player_history)
 
+        sorted_players = sorted(players, key=lambda x: (x['rating'], x['wins']), reverse=True)
+        rank_val = 0
+        last_rating = -1
+        offset = 1
+        for p in sorted_players:
+            if p['rating'] != last_rating:
+                rank_val += offset
+                offset = 1
+            else:
+                offset += 1
+            p['rank'] = rank_val
+            last_rating = p['rating']
 
-        return players
+        return sorted_players
 
     def _get_player_match_history(self, player_id: int) -> dict[str, int]:
 
@@ -100,7 +117,7 @@ class Player:
             self.conn.commit()
             cursor.close()
         except Exception as e:
-            print(f'Error occurred: {e}')
+            logger.error(f'Error occurred: {e}')
             return False
 
         return True
