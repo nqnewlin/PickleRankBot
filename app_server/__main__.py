@@ -326,6 +326,8 @@ async def send_keep_alive_message():
 
 if __name__ == '__main__':
     print('starting discord server')
+    token=os.getenv('DISCORD_TOKEN')
+    print(token)
     client.run(
         token=os.getenv('DISCORD_TOKEN'),
         log_level=logging.DEBUG,
