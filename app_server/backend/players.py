@@ -67,6 +67,12 @@ class Player:
             player_history['name'] = name
             players.append(player_history)
 
+        unranked_players = [p for p in players if p['games'] == 0]
+        for up in unranked_players:
+            up['rank'] = 'NR'
+        players = [p for p in players if p['games'] != 0]
+
+
         sorted_players = sorted(players, key=lambda x: (x['rating'], x['wins']), reverse=True)
         rank_val = 0
         last_rating = -1
@@ -79,6 +85,8 @@ class Player:
                 offset += 1
             p['rank'] = rank_val
             last_rating = p['rating']
+
+        sorted_players.extend(unranked_players)
 
         return sorted_players
 
